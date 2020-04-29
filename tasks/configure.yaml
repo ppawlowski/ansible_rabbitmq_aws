@@ -1,0 +1,133 @@
+- name: Create RabbitMQ server configuration
+  template:
+    src: rabbitmq.conf.j2
+    dest: "{{rabbitmq_configuration_directory}}/rabbitmq.conf"
+    owner: root
+    group: "{{rabbitmq_group}}"
+    mode: 0644
+
+- name: Create RabbitMQ environment configuration
+  template:
+    src: rabbitmq-env.conf.j2
+    dest: "{{rabbitmq_configuration_directory}}/rabbitmq-env.conf"
+    owner: root
+    group: "{{rabbitmq_group}}"
+    mode: 0644
+
+- name: Create directory for RabbitMQ service limits configuration
+  file:
+    path: "{{rabbitmq_limits_configuration_directory}}"
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+
+- name: Apply system limits for RabbitMQ service
+  template:
+    src: limits.conf.j2
+    dest: "{{rabbitmq_limits_configuration_directory}}/limits.conf"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create file with erlang cookie
+  template:
+    src: erlang.cookie.j2
+    dest: "/var/lib/rabbitmq/.erlang.cookie"
+    owner: "{{rabbitmq_user}}"
+    group: "{{rabbitmq_group}}"
+    mode: 0400
+
+- name: Enable rabbitmq_management plugin
+  rabbitmq_plugin:
+    names: rabbitmq_management
+    state: enabled
+    new_only: true
+
+- name: Enable and start RabbitMQ server service on primary server
+  service:
+    name: rabbitmq-server
+    state: started
+    enabled: true
+  when: ec2_tag_rabbitmq_server_type == 'primary'
+
+- name: Wait for the primary server to become online
+  pause:
+    seconds: 30
+
+- name: Enable and start RabbitMQ server service on other servers
+  service:
+    name: rabbitmq-server
+    state: started
+    enabled: true
+  when: ec2_tag_rabbitmq_server_type != 'primary'
+
+- name: Create administrative users
+  rabbitmq_user:
+    user: "{{item.name}}"
+    password: "{{item.password}}"
+    vhost: /
+    configure_priv: .*
+    read_priv: .*
+    write_priv: .*
+    tags: administrator
+    state: present
+    update_password: always
+  with_items: '{{rabbitmq_administrators}}'
+  when: ec2_tag_rabbitmq_server_type == 'primary'
+
+- name: Remove guest user
+  rabbitmq_user:
+    user: guest
+    password: guest
+    state: absent
+  when: ec2_tag_rabbitmq_server_type == 'primary'
+
+- name: Include environment-specific variables
+  include_vars:
+    file: '{{env}}_variables.yaml'
+
+- name: Create vhosts
+  rabbitmq_vhost:
+    name: "{{item.vhost}}"
+    state: present
+  with_items: '{{rabbitmq_application_users}}'
+  when: ec2_tag_rabbitmq_server_type == 'primary'
+
+- name: Create application users
+  rabbitmq_user:
+    user: "{{item.username}}"
+    password: "{{item.password}}"
+    vhost: "{{item.vhost}}"
+    configure_priv: .*
+    read_priv: .*
+    write_priv: .*
+    state: present
+    update_password: always
+  with_items: '{{rabbitmq_application_users}}'
+  when: ec2_tag_rabbitmq_server_type == 'primary'
+
+- name: Configure mirroring
+  rabbitmq_policy:
+    name: ha-all
+    vhost: "{{item.vhost}}"
+    pattern: .*
+    state: present
+    tags:
+      ha-mode: all
+  with_items: "{{rabbitmq_application_users}}"
+  when: ec2_tag_rabbitmq_server_type == 'primary'
+
+- name: Create RabbitMQ monitoring users
+  rabbitmq_user:
+    user: "{{rabbitmq_monitoring_username}}"
+    password: "{{rabbitmq_monitoring_password}}"
+    vhost: "{{item.vhost}}"
+    configure_priv: .*
+    read_priv: .*
+    write_priv: ^$
+    tags: monitoring
+    state: present
+    update_password: always
+  with_items: "{{rabbitmq_application_users}}"
+  when: ec2_tag_rabbitmq_server_type == 'primary'

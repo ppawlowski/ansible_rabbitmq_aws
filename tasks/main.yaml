@@ -1,0 +1,11 @@
+- name: Prepare storage
+  import_tasks: storage.yaml
+  tags: packer
+
+- name: Install rabbitmq
+  import_tasks: ami.yaml
+  tags: packer
+
+- name: Configure RabbitMQ cluster
+  import_tasks: configure.yaml
+  tags: terraform

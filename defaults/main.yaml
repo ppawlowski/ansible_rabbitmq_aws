@@ -1,0 +1,7 @@
+rabbitmq_configuration_directory: "/etc/rabbitmq"
+rabbitmq_mnesia_base: "/data/rabbitmq"
+rabbitmq_limits_configuration_directory: "/etc/systemd/system/rabbitmq-server.service.d/"
+rabbitmq_user: "rabbitmq"
+rabbitmq_group: "rabbitmq"
+rabbitmq_nofile_limit: 65536
+rabbitmq_telegraf_monitoring: true

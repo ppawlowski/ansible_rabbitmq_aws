@@ -1,0 +1,7 @@
+rabbitmq_application_users:
+  - username: "user0"
+    password: "user0$3cr3tP@ssw0rd"
+    vhost: "vhost0"
+  - username: "user1"
+    password: "user1$3cr3tP@ssw0rd"
+    vhost: "vhost1"

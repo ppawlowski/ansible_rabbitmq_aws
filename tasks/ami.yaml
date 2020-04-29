@@ -1,0 +1,56 @@
+- name: Check server
+  fail:
+    msg: "This role does not support installation of RabbitMQ on other OS than CentOS 7"
+  when: (ansible_distribution != "CentOS") or (ansible_distribution == "CentOS" and ansible_distribution_major_version != "7")
+
+- name: Check if necessary variables are defined
+  fail:
+    msg: "{{item}} variable not defined"
+  when: item not in vars
+  with_items: "{{rabbitmq_required_variables}}"
+
+- name: Check RabbitMQ version support
+  fail:
+    msg: "Sorry, this role does not support installation of RabbitMQ {{rabbitmq_version}}"
+    with_items: "{{rabbitmq_acceptable_versions}}"
+  when: rabbitmq_version not in rabbitmq_acceptable_versions
+
+- name: Disable selinux
+  selinux:
+    state: disabled
+
+- name: Install Erlang Solutions repository
+  yum:
+    name: "{{rabbitmq_erlang_repository_url}}"
+    state: present
+
+- name: Exclude erlang package from epel repository
+  blockinfile:
+    path: /etc/yum.repos.d/epel.repo
+    insertafter: ^\[base\]
+    block: |
+      exclude=erlang*
+
+- name: Enable Bintray repository with RabbitMQ {{rabbitmq_version}}
+  template:
+    src: yum_repository.j2
+    dest: /etc/yum.repos.d/bintray.repo
+    mode: 0644
+
+- name: Import RabbitMQ repository siging key
+  rpm_key:
+    key: "{{rabbitmq_repository_signing_key_url}}"
+    state: present
+
+- name: Install RabbitMQ server
+  yum:
+    name: rabbitmq-server
+    state: latest
+
+- name: Create RabbitMQ directory
+  file:
+    path: "{{rabbitmq_mnesia_base}}"
+    owner: "{{rabbitmq_user}}"
+    group: "{{rabbitmq_group}}"
+    state: directory
+    mode: 0755

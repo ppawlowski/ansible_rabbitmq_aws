@@ -1,0 +1,28 @@
+- name: Create data partition
+  become: true
+  parted:
+    device: '{{rabbitmq_data_device_name}}'
+    number: 1
+    state: present
+
+- name: Format data partition
+  become: true
+  filesystem:
+    dev: '{{rabbitmq_data_partition_name}}'
+    fstype: xfs
+
+- name: Create {{rabbitmq_data_mount_point}} directory
+  become: true
+  file:
+    path: '{{rabbitmq_data_mount_point}}'
+    state: directory
+    mode: 0755
+
+- name: Mount {{rabbitmq_data_partition_name}} to {{rabbitmq_data_mount_point}}
+  become: true
+  mount:
+    path: '{{rabbitmq_data_mount_point}}'
+    src: '{{rabbitmq_data_partition_name}}'
+    fstype: xfs
+    opts: noatime
+    state: mounted
